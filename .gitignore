@@ -1,0 +1,5 @@
+.knowledge
+.env
+*.md
+!README.md
+vault-init.json
