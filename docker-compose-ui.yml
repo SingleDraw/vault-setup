@@ -1,0 +1,11 @@
+services:
+  vault-ui:
+    image: djenriquez/vault-ui:latest
+    container_name: vault-ui
+    ports:
+      - "8000:8000"
+    environment:
+      VAULT_URL_DEFAULT: http://vault:8200
+      VAULT_AUTH_DEFAULT: TOKEN
+    # depends_on:
+    #   - vault

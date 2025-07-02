@@ -7,7 +7,33 @@ services:
     command: "agent -server -bootstrap-expect=1 -ui -client=0.0.0.0 -data-dir=/consul/data"
     volumes:
       - consul_data:/consul/data
+    healthcheck:
+      test: ["CMD", "consul", "members"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
+  # Master vault - handles unsealing keys (prod mode)
+  vault-unsealer:
+    image: hashicorp/vault:latest
+    container_name: vault-unsealer
+    ports:
+      - "8201:8200"  # External access on 8201
+    environment:
+      VAULT_DEV_LISTEN_ADDRESS: 0.0.0.0:8200
+      VAULT_ADDR: http://0.0.0.0:8200
+    cap_add:
+      - IPC_LOCK
+    volumes:
+      - ./vault-config/prod/unsealer:/vault/config
+    command: vault server -config=/vault/config/unsealer.hcl
+    healthcheck:
+      test: ["CMD", "vault", "status"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+  
+  # MMain application vault
   vault: 
     image: hashicorp/vault:latest
     container_name: vault
@@ -15,15 +41,16 @@ services:
       - "8200:8200"
     environment:
       VAULT_DEV_LISTEN_ADDRESS: 0.0.0.0:8200
+      UNSEALER_TOKEN: ${UNSEALER_TOKEN:-}       # Pass this differently in production
       VAULT_ADDR: http://0.0.0.0:8200
     cap_add:
       - IPC_LOCK  # For Vault to lock memory (prevents sensitive data from being swapped to disk)
     volumes:
       - vault-data:/vault/data
       - vault-logs:/vault/logs
-      - ./vault-config/prod:/vault/config
+      - ./vault-config/prod/main:/vault/config
+    entrypoint: /vault/config/entrypoint.sh
     command: vault server -config=/vault/config/vault.hcl
-
     healthcheck:
       test: ["CMD", "vault", "status"]
       interval: 30s
@@ -31,15 +58,22 @@ services:
       retries: 3
     depends_on:
       - consul
+      - vault-unsealer
 
-  vault-ui:
-    image: djenriquez/vault-ui:latest
-    container_name: vault-ui
-    ports:
-      - "8000:8000"
+  # Vault Agent
+  vault-agent:
+    image: hashicorp/vault:latest
+    container_name: vault-agent
+    volumes:
+      - ./vault-config/prod/agent:/vault/config # Configuration files for Vault Agent, with creds/role_id
+      - vault-agent-data:/vault/agent-data
     environment:
-      VAULT_URL_DEFAULT: http://vault:8200
-      VAULT_AUTH_DEFAULT: TOKEN
+      VAULT_ADDR: http://vault:8200
+    # command: >
+    #   vault agent -config=/vault/config/agent.hcl
+    # Debug command to keep the container running for debugging
+    command: >
+      sh -c "vault agent -config=/vault/config/agent.hcl || (echo 'Vault agent failed, sleeping for debug'; sleep 3600)"
     depends_on:
       - vault
 
@@ -47,4 +81,5 @@ volumes:
   consul_data:
   vault-data:
   vault-logs:
-
+  vault-agent-data: # Data for Vault Agent to store and share the agent token with the client app
+    name: vault-agent-data

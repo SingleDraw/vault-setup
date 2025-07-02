@@ -1,0 +1,16 @@
+#!/bin/bash
+
+# Apply the ignore rules to ignored directories
+# Useful when moving files around
+
+# shellcheck disable=SC2207
+TO_IGNORE=($(git ls-files .knowledge _backup))
+
+if [ ${#TO_IGNORE[@]} -eq 0 ]; then
+  echo "No files to ignore."
+  exit 0
+fi
+
+git rm --cached -r "${TO_IGNORE[@]}"
+
+# --eof file---

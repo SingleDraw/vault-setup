@@ -1,0 +1,18 @@
+services:
+  # Client application
+  # This application will use the Vault Agent to access secrets
+  app:
+    build: ./client-app 
+    container_name: client-app
+    # depends_on:
+    #   - vault-agent
+    environment:
+      VAULT_ADDR: "http://vault:8200"
+      VAULT_TOKEN_PATH: "/vault/agent-data/agent-token"
+    volumes:
+      - vault-agent-data:/vault/agent-data:ro # Read-only access to the agent token
+
+
+volumes:
+  vault-agent-data: # Data for Vault Agent to store and share the agent token with the client app
+    external: true

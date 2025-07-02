@@ -1,0 +1,69 @@
+#!/bin/bash
+
+# ---------------------------------------------------------
+# Script to extract unseal keys from a JSON file
+# Indirect Reference for array assignment
+# ---------------------------------------------------------
+
+extract_unseal_keys() {
+  local json="$1"
+  local result_var="$2"
+  local keys=()
+
+  local raw_keys
+  raw_keys=$(sed -n '/"unseal_keys_b64"[[:space:]]*:[[:space:]]*\[/,/\]/p' <<< "$json")
+
+  local skip_first=1
+  while read -r line; do
+    ((skip_first)) && { skip_first=0; continue; }
+    [[ $line =~ \"([^\"]+)\" ]] && keys+=("${BASH_REMATCH[1]}")
+  done <<< "$raw_keys"
+
+  # Assign array via indirect reference
+  eval "$result_var=()" # need to eval cause we don't know the name of the array variable in advance
+  for key in "${keys[@]}"; do
+    eval "$result_var+=(\"\$key\")" # same here, we need to eval to assign to the array, key must be escaped, cause it will be evaluated as a variable
+  done
+}
+
+
+# ------------------------------------------------------------------
+# Main script execution - debugging mode
+# This part of the script is executed only when the script is run directly,
+# not when sourced. It reads the vault-init.json file, extracts the unseal keys,
+# and prints them.
+# ------------------------------------------------------------------
+
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+  echo "Script is being run directly, not sourced."
+  echo "Debugging mode is enabled: "
+  echo "  extract_unseal_keys function will print the unseal keys from vault-init.json"
+  if [ ! -f vault-init.json ]; then
+    echo "vault-init.json not found. Please ensure it exists in the current directory."
+    exit 1
+  fi
+
+  # Check if vault-init.json exists
+  if [[ ! -f vault-init.json ]]; then
+    echo "vault-init.json not found. Please ensure it exists in the current directory."
+    exit 1
+  fi
+
+  # Read the JSON file and extract unseal keys
+  json_content=$(cat vault-init.json)
+  if [[ -z $json_content ]]; then
+    echo "vault-init.json is empty or not readable."
+    exit 1
+  fi
+
+  extract_unseal_keys "$json_content" unseal_keys
+
+  # Now use the array
+  # shellcheck disable=SC2154
+  for key in "${unseal_keys[@]}"; do
+    echo "Key: $key"
+  done
+
+fi
+
+# --eof file--

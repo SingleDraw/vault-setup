@@ -1,5 +1,7 @@
+_backup
 .knowledge
 .env
 *.md
 !README.md
 vault-init.json
+unsealer-init.json

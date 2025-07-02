@@ -1,0 +1,28 @@
+#!/bin/bash
+
+# Destroy script for the Vault Transit Auto-Unsealer setup
+
+if [ -f unsealer-init.json ]; then
+    rm -f unsealer-init.json
+fi
+if [ -f vault-init.json ]; then
+    rm -f vault-init.json
+fi
+if [ -f vault-config/prod/agent/creds/role_id.txt ]; then
+    rm -f vault-config/prod/agent/creds/role_id.txt
+fi
+if [ -f vault-config/prod/agent/creds/secret_id.txt ]; then
+    rm -f vault-config/prod/agent/creds/secret_id.txt
+fi
+
+# down the Docker Compose services
+docker-compose -f docker-compose-prod.yml down
+docker-compose -f docker-compose-client.yml down
+
+# remove the Docker containers
+docker-compose -f docker-compose-prod.yml rm -f
+docker-compose -f docker-compose-client.yml rm -f
+
+# remove volumes
+docker-compose -f docker-compose-prod.yml down -v
+docker-compose -f docker-compose-client.yml down -v

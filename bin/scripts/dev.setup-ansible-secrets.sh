@@ -1,26 +1,56 @@
 #!/bin/bash
 
-# Vault setup for Ansible integration
+# Initialize and configure Vault
 
+set -e
+
+# --------------------------------------------------------------
+# Setup environment variables and colors :)
+# --------------------------------------------------------------
+
+# # read .env file if it exists
+# if [ -f .env ]; then
+#   echo "Loading environment variables from .env file..."
+#   set -a
+#   source .env
+#   set +a
+# fi 
+
+VAULT_ADDR=${VAULT_ADDR:-http://localhost:8200}
+VAULT_TOKEN=$(sed -n 's/.*"root_token"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' vault-init.json)
+
+# Colors for output
+RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
-# --------------------------------------------------------------
-# Bootstrap Vault access for Ansible by:
-    # Enabling the KV secrets engine
-    # Creating a policy for Ansible
-    # Creating a token for Ansible to authenticate
-    # Optionally storing secrets
-# --------------------------------------------------------------
+# ------------------------------------------------------------
+# Start Vault setup
+# ------------------------------------------------------------
 
-# Read VAULT_TOKEN from vault-init.json if it exists
-if [ -f vault-init.json ]; then
-    VAULT_TOKEN=$(sed -n 's/.*"root_token"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' vault-init.json)
-else
-    echo "vault-init.json not found. Please run prod.bootstrap.sh first to initialize Vault."
-    exit 1
-fi
+echo -e "${GREEN}Starting Vault setup...${NC}"
+
+# Start Vault container
+echo "Starting Vault container..."
+docker-compose -f docker-compose-dev.yml up -d vault
+
+# Wait for Vault to be ready
+echo "Waiting for Vault to be ready..."
+sleep 10
+
+# Export Vault environment variables
+export VAULT_ADDR
+# export VAULT_TOKEN
+
+# Check Vault status
+echo "Checking Vault status..."
+docker exec -e VAULT_TOKEN="$VAULT_TOKEN" vault vault status
+
+echo -e "${GREEN}Vault is running!${NC}"
+echo -e "${YELLOW}Access the UI at: http://localhost:8200${NC}"
+echo -e "${YELLOW}Root token: $VAULT_TOKEN${NC}"
+
 
 # --------------------------------------------------------------
 # Initialize Vault
@@ -39,7 +69,9 @@ else
   docker exec -e VAULT_ADDR="http://127.0.0.1:8200" -e VAULT_TOKEN="$VAULT_TOKEN" vault vault secrets enable -path=ansible kv-v2
 fi
 
-# --------------------------------------------------------------
+
+
+# ---------------------------------------------------------------
 # Create initial policies and tokens
 # ---------------------------------------------------------------
 
@@ -55,7 +87,6 @@ path "ansible/" {
   capabilities = ["list"]
 }
 EOF
-
 # Create a token for Ansible with limited permissions
 echo "Creating Ansible token..."
 # or use the -field option to get just the token
@@ -64,6 +95,7 @@ ANSIBLE_TOKEN=$(docker exec -e VAULT_ADDR="http://127.0.0.1:8200" -e VAULT_TOKEN
   -ttl=24h \
   -renewable=true \
   -field=token)
+
 
 echo -e "${GREEN}Setup complete!${NC}"
 echo -e "${YELLOW}Ansible token: ${ANSIBLE_TOKEN}${NC}"
@@ -77,8 +109,3 @@ docker exec -e VAULT_ADDR="http://127.0.0.1:8200" -e VAULT_TOKEN="$VAULT_TOKEN" 
 docker exec -e VAULT_ADDR="http://127.0.0.1:8200" -e VAULT_TOKEN="$VAULT_TOKEN" vault vault kv put ansible/api-keys service1=key123 service2=key456
 
 echo -e "${GREEN}Example secrets stored in ansible/ path${NC}"
-
-echo "${YELLOW}You can now test read access to these secrets with prod.read-ansible-secrets.sh${NC}"
-
-# Note: Make sure to run this script after prod.bootstrap.sh to ensure Vault is initialized and unsealed.
-# ---eof file---

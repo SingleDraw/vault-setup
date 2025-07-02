@@ -1,88 +1,87 @@
-# Vault + Consul Development Setup
+# Vault Transit Auto-Unsealing with Consul & Agent Demo
 
-This setup provides a local development environment with HashiCorp Vault and Consul running in Docker containers.
+A local environment demonstrating **Vault Transit Auto-Unsealing** with **Consul** as the storage backend. Includes a **Vault Agent** example, **Ansible secret storage**, and an interactive menu for managing it all.
 
-## ⚠️ Security Notice
+---
 
-**This configuration is for development/testing only!** It uses insecure practices including:
-- Single unseal key (threshold=1)
-- Storing vault credentials in `vault-init.json` 
-- Automated unsealing from stored credentials
+## Features
 
-**Never use this in production!**
+* 🔐 Vault auto-unsealing using Transit & Consul
+* ⚙️ Vault Agent mode with containerized client app
+* 🧪 Ansible secrets: write & read from Vault KV
+* 🧰 Interactive terminal menu via `setup-vault.sh`
+* 🧹 One-command teardown for cleanup
 
-## Services
+---
 
-- **Consul**: Service discovery and Vault storage backend (port 8500)
-- **Vault**: Secret management server (port 8200) 
-- **Vault UI**: Web interface for Vault (port 8000)
+## Menu Options (`./setup-vault.sh`)
 
-## Quick Start
+* **Agent Mode: Run Vault + Unsealer + Agent + Consul**
+  Simulates a production-like setup with Vault Agent. Uses pre-exported JSON credentials (e.g. `role_id`, `secret_id`) for testing and display purposes.
 
-### 1. Initial Bootstrap
-```bash
-./prod.bootstrap.sh
+* **Agent Mode: Run Client App to test Vault Agent**
+  Launches a Python container app that authenticates using Vault Agent and fetches secrets.
+
+* **Dev Mode: Run Vault + Unsealer + Consul**
+  Starts Vault in development mode with auto-unseal using the root token from `.env`.
+
+* **Dev Mode: Setup Ansible Secrets in Vault**
+  Writes mock secrets into Vault KV for Ansible testing.
+
+* **Dev Mode: Read Ansible Secrets from Vault**
+  Reads the stored secrets, simulating secure retrieval by a client like Ansible.
+
+* **Destroy All**
+  Removes all containers and volumes to reset the environment.
+
+---
+
+## Structure
+
+```text
+.
+├── bin
+│   ├── scripts
+│   │   ├── dev.bootstrap.sh
+│   │   ├── dev.read-ansible-secrets.sh
+│   │   ├── dev.setup-ansible-secrets.sh
+│   │   ├── prod.bootstrap.sh
+│   │   └── prod.client-app.sh
+│   ├── destroy
+│   └── ...
+├── client-app
+│   ├── app.py
+│   ├── Dockerfile
+│   └── entrypoint.sh
+├── vault-config
+│   ├── dev/
+│   └── prod/
+│       ├── agent/
+│       │   ├── creds/
+│       │   │   ├── role_id
+│       │   │   └── secret_id
+│       │   └── agent.hcl
+│       ├── main/
+│       │   ├── vault.hcl
+│       │   └── vault.hcl.tpl
+│       └── unsealer/
+│           └── unsealer.hcl
+├── docker-compose-*.yml
+├── setup-vault.sh   ← Main menu entrypoint
+├── .env             ← Environment variables
+└── README.md
 ```
-This script will:
-- Start Consul and Vault containers
-- Initialize Vault with a single unseal key
-- Store initialization data in `vault-init.json` (insecure!)
-- Automatically unseal Vault using the stored key
 
-### 2. Setup Ansible Integration (Run Once)
-```bash
-./prod.setup-ansible.sh
-```
-This configures Vault for Ansible by:
-- Enabling the KV secrets engine
-- Creating an Ansible-specific policy
-- Generating an authentication token for Ansible
-- Storing example secrets for testing
+---
 
-### 3. Test Secret Reading
-```bash
-./prod.read-ansible-secrets.sh
-```
-Verifies that secrets can be read from Vault using the Ansible token.
+## Notes
 
-## After Restarts
+* **Production mode** uses an initialized and sealed Vault with external unsealer logic (manual or scripted).
+* **Development mode** uses pre-configured root token auto-unsealer for testing purposes.
+* The **Vault Agent** in prod allows dynamic secret injection to apps without exposing tokens.
 
-When Vault containers restart, run the bootstrap script again to unseal:
-```bash
-./prod.bootstrap.sh
-```
+## Requirements
 
-The script detects if Vault is already initialized and only performs the unsealing step.
-
-## Data Persistence
-
-Configuration and secrets persist between container restarts via Docker volumes:
-- `consul_data`: Consul's data directory
-- `vault-data`: Vault's data storage
-- `vault-logs`: Vault's log files
-
-## Production Considerations
-
-For production deployments:
-- Use multiple unseal keys with higher threshold (e.g., 3 of 5)
-- Store unseal keys securely (separate systems/people)
-- Use auto-unsealing with cloud KMS or another Vault cluster
-- Implement proper authentication methods (LDAP, OIDC, etc.)
-- Use TLS encryption for all communications
-- Set up proper monitoring and alerting
-
-## Accessing Services
-
-- **Vault API**: http://localhost:8200
-- **Vault UI**: http://localhost:8000  
-- **Consul UI**: http://localhost:8500
-
-## Troubleshooting
-
-If containers fail to start:
-1. Check if ports 8200, 8500, or 8000 are already in use
-2. Verify Docker is running and has sufficient resources
-3. Check logs: `docker-compose logs <service-name>`
-
-If Vault is sealed after restart:
-- Run `./prod.bootstrap.sh` to unseal using stored credentials
+* Docker & Docker Compose
+* Bash
+* Vault & Consul images pulled automatically

@@ -16,8 +16,18 @@ listener "tcp" {
   tls_disable = 1               # Disable TLS for development purposes
 }
 
+# Transit auto-unsealing
+seal "transit" {
+  address         = "http://vault-unsealer:8200"  # Internal Docker network address (internal port cause it's in the same network)
+  token           = "${UNSEALER_TOKEN}"           # Dev mode root token
+  key_name        = "autounseal"                  # Key name in transit engine
+  mount_path      = "transit/"                    # Transit engine mount path
+  tls_skip_verify = true                          # 
+}
+
 api_addr = "http://0.0.0.0:8200"
 cluster_addr = "http://0.0.0.0:8201"
+
 ui = true
 
 # Disable mlock for development
